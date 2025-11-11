@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Running Challenge Tracker</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState } = React;
+    const { Play, Check, Trophy, TrendingUp, Upload, Image, X, CheckCircle, Clock } = lucide;
+
+    function RunningTracker() {
+      const [runs, setRuns] = useState([]);
+      const [currentWeek, setCurrentWeek] = useState(1);
+      const [showAddRun, setShowAddRun] = useState(false);
+      const [newRun, setNewRun] = useState({ miles: '', minutes: '', date: '', screenshot: null, screenshotPreview: null, approved: false });
+
+      const calculateEarnings = (weekNum) => {
+        const weekRuns = runs.filter(r => r.week === weekNum && r.approved);
+        const totalMiles = weekRuns.reduce((sum, r) => sum + r.miles, 0);
+        const milesEarnings = totalMiles * 5;
+        const bonus = totalMiles >= 15 ? 25 : 0;
+        return { miles: totalMiles, earnings: milesEarnings, bonus, total: milesEarnings + bonus };
+      };
+
+      const handleScreenshotUpload = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setNewRun({ 
+              ...newRun, 
+              screenshot: file.name,
+              screenshotPreview: reader.result 
+            });
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+
+      const addRun = () => {
+        if (newRun.miles && newRun.minutes && newRun.date && newRun.screenshot) {
+          const pace = parseFloat(newRun.minutes) / parseFloat(newRun.miles);
+          setRuns([...runs, {
+            id: Date.now(),
+            week: currentWeek,
+            miles: parseFloat(newRun.miles),
+            minutes: parseFloat(newRun.minutes),
+            pace: pace.toFixed(2),
+            date: newRun.date,
+            screenshot: newRun.screenshotPreview,
+            approved: false
+          }]);
+          setNewRun({ miles: '', minutes: '', date: '', screenshot: null, screenshotPreview: null, approved: false });
+          setShowAddRun(false);
+        }
+      };
+
+      const approveRun = (runId) => {
+        setRuns(runs.map(run => 
+          run.id === runId ? { ...run, approved: true } : run
+        ));
+      };
+
+      const deleteRun = (runId) => {
+        if (confirm('Delete this run?')) {
+          setRuns(runs.filter(run => run.id !== runId));
+        }
+      };
+
+      const weekData = [1, 2, 3, 4].map(week => calculateEarnings(week));
+      const totalEarnings = weekData.reduce((sum, w) => sum + w.total, 0);
+      const pendingRuns = runs.filter(r => !r.approved).length;
+
+      const weeklyPlan = {
+        1: { target: 10, schedule: 'Mon: 2mi, Wed: 2.5mi, Fri: 2mi, Sat: 3.5mi' },
+        2: { target: 12, schedule: 'Mon: 2.5mi, Wed: 3mi, Fri: 2.5mi, Sat: 4mi' },
+        3: { target: 14, schedule: 'Mon: 3mi, Wed: 3.5mi, Fri: 3mi, Sat: 4.5mi' },
+        4: { target: 15, schedule: 'Mon: 3mi, Wed: 4mi, Fri: 3mi, Sat: 5mi' }
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-3xl font-bold text-purple-600 flex items-center gap-2">
+                  <TrendingUp size={32} />
+                  Running Challenge
+                </h1>
+                <div className="text-right">
+                  <div className="text-sm text-gray-500">Total Earnings</div>
+                  <div className="text-3xl font-bold text-green-600">${totalEarnings}</div>
+                  {pendingRuns > 0 && (
+                    <div className="text-xs text-orange-600 flex items-center gap-1 justify-end mt-1">
+                      <Clock size={12} />
+                      {pendingRuns} pending approval
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-purple-50 rounded-lg p-4">
+                <h3 className="font-semibold text-purple-800 mb-2">💰 How You Earn:</h3>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li>• $5 per mile you run</li>
+                  <li>• $25 BONUS when you hit 15 miles in a week!</li>
+                  <li>• Upload screenshot proof from your running app</li>
+                  <li>• Parent approval required to count earnings</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+              {[1, 2, 3, 4].map(week => {
+                const data = calculateEarnings(week);
+                return (
+                  <button
+                    key={week}
+                    onClick={() => setCurrentWeek(week)}
+                    className={`flex-1 min-w-[140px] p-4 rounded-lg transition-all ${
+                      currentWeek === week
+                        ? 'bg-purple-600 text-white shadow-lg scale-105'
+                        : 'bg-white text-gray-700 hover:bg-purple-50'
+                    }`}
+                  >
+                    <div className="font-bold">Week {week}</div>
+                    <div className="text-sm opacity-90">{data.miles.toFixed(1)} / {weeklyPlan[week].target} mi</div>
+                    <div className="text-sm font-semibold mt-1">${data.total}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Week {currentWeek}</h2>
+                <button
+                  onClick={() => setShowAddRun(true)}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
+                >
+                  <Play size={16} />
+                  Log Run
+                </button>
+              </div>
+
+              <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold text-blue-900 mb-2">📅 This Week's Plan:</h3>
+                <p className="text-sm text-gray-700">{weeklyPlan[currentWeek].schedule}</p>
+                <p className="text-xs text-blue-600 mt-2">Goal: {weeklyPlan[currentWeek].target} miles</p>
+              </div>
+
+              <div className="mb-4">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-600">Progress (Approved Miles)</span>
+                  <span className="font-semibold text-purple-600">
+                    {calculateEarnings(currentWeek).miles.toFixed(1)} / {weeklyPlan[currentWeek].target} miles
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min((calculateEarnings(currentWeek).miles / weeklyPlan[currentWeek].target) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-green-50 p-3 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    ${calculateEarnings(currentWeek).earnings}
+                  </div>
+                  <div className="text-xs text-gray-600">Miles Earnings</div>
+                </div>
+                <div className="bg-yellow-50 p-3 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-yellow-600">
+                    ${calculateEarnings(currentWeek).bonus}
+                  </div>
+                  <div className="text-xs text-gray-600">Bonus</div>
+                </div>
+                <div className="bg-purple-50 p-3 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    ${calculateEarnings(currentWeek).total}
+                  </div>
+                  <div className="text-xs text-gray-600">Week Total</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {runs.filter(r => r.week === currentWeek).length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <Trophy size={48} className="mx-auto mb-2 opacity-50" />
+                    <p>No runs logged yet. Get started!</p>
+                  </div>
+                ) : (
+                  runs.filter(r => r.week === currentWeek).map(run => (
+                    <div key={run.id} className={`border-2 rounded-lg p-3 ${
+                      run.approved ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'
+                    }`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          {run.approved ? (
+                            <CheckCircle size={20} className="text-green-500 mt-1" />
+                          ) : (
+                            <Clock size={20} className="text-orange-500 mt-1" />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="font-semibold">{run.miles} miles</div>
+                              {!run.approved && (
+                                <span className="text-xs bg-orange-200 text-orange-800 px-2 py-0.5 rounded">
+                                  Pending
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600">{run.date} • {run.pace} min/mile</div>
+                            {run.screenshot && (
+                              <button
+                                onClick={() => {
+                                  const modal = document.createElement('div');
+                                  modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50';
+                                  modal.onclick = () => modal.remove();
+                                  modal.innerHTML = `<img src="${run.screenshot}" class="max-w-full max-h-full rounded-lg" />`;
+                                  document.body.appendChild(modal);
+                                }}
+                                className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 mt-1"
+                              >
+                                <Image size={12} />
+                                View Screenshot
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-green-600 font-bold">${(run.miles * 5).toFixed(2)}</div>
+                          {!run.approved && (
+                            <button
+                              onClick={() => approveRun(run.id)}
+                              className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteRun(run.id)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {showAddRun && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-xl font-bold mb-4">Log Your Run</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={newRun.date}
+                        onChange={(e) => setNewRun({ ...newRun, date: e.target.value })}
+                        className="w-full border rounded-lg px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Miles</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="3.5"
+                        value={newRun.miles}
+                        onChange={(e) => setNewRun({ ...newRun, miles: e.target.value })}
+                        className="w-full border rounded-lg px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Total Minutes</label>
+                      <input
+                        type="number"
+                        placeholder="30"
+                        value={newRun.minutes}
+                        onChange={(e) => setNewRun({ ...newRun, minutes: e.target.value })}
+                        className="w-full border rounded-lg px-3 py-2"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Screenshot Proof <span className="text-red-500">*</span>
+                      </label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                        {newRun.screenshotPreview ? (
+                          <div className="relative">
+                            <img 
+                              src={newRun.screenshotPreview} 
+                              alt="Screenshot preview" 
+                              className="max-h-48 mx-auto rounded"
+                            />
+                            <button
+                              onClick={() => setNewRun({ ...newRun, screenshot: null, screenshotPreview: null })}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <Upload size={32} className="mx-auto text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-600">
+                              Upload screenshot from Nike Run, MapMyRun, etc.
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Click to choose file
+                            </p>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleScreenshotUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {newRun.miles && newRun.minutes && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <div className="text-sm text-gray-600">Your pace:</div>
+                        <div className="text-lg font-bold text-blue-600">
+                          {(parseFloat(newRun.minutes) / parseFloat(newRun.miles)).toFixed(2)} min/mile
+                        </div>
+                        <div className="text-sm text-green-600 mt-1">
+                          Potential earnings: ${(parseFloat(newRun.miles) * 5).toFixed(2)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          (Pending parent approval)
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowAddRun(false)}
+                        className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={addRun}
+                        disabled={!newRun.miles || !newRun.minutes || !newRun.date || !newRun.screenshot}
+                        className="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      >
+                        Submit Run
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<RunningTracker />);
+  </script>
+</body>
+</html>
